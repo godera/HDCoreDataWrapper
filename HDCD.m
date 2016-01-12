@@ -16,7 +16,7 @@
 @property (strong, nonatomic) NSManagedObjectModel *managedObjectModel;
 
  // saving context
-@property (strong, nonatomic) NSManagedObjectContext *privateContext;
+@property (strong, nonatomic) NSManagedObjectContext *rootPrivateContext;
 
  // UI context
 @property (strong, nonatomic) NSManagedObjectContext *mainContext;
@@ -58,14 +58,14 @@
     // 这里把数据库文件存储在了 Documents 目录，然后做了 iCloud 上传屏蔽
     NSURL *documentURL = [[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject];
     NSURL *dbFileURL = [documentURL URLByAppendingPathComponent:_sqliteFileName];
-    NSLog(@"core data db URL = %@", dbFileURL);
+    StepLog(@"core data db URL = %@", dbFileURL);
     
     NSError *error = nil;
     NSDictionary *options = @{NSMigratePersistentStoresAutomaticallyOption: @YES, NSInferMappingModelAutomaticallyOption: @YES};
     NSPersistentStoreCoordinator *persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel: managedObjectModel];
     
     if (![persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:dbFileURL options:options error:&error]) {
-        NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
+        ErrorLog(@"Unresolved error %@, %@", error, [error userInfo]);
         abort();
     }
     [dbFileURL skipICloudBackup];
@@ -74,7 +74,7 @@
     if (persistentStoreCoordinator != nil) {
         NSManagedObjectContext *privateContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSPrivateQueueConcurrencyType];
         privateContext.persistentStoreCoordinator = persistentStoreCoordinator;
-        self.privateContext = privateContext;
+        self.rootPrivateContext = privateContext;
         
         NSManagedObjectContext *mainContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
         mainContext.parentContext = privateContext;
@@ -83,8 +83,8 @@
 
 }
 
-+ (NSManagedObjectContext *)privateContext {
-    return [self sharedInstance].privateContext;
++ (NSManagedObjectContext *)rootPrivateContext {
+    return [self sharedInstance].rootPrivateContext;
 }
 
 + (NSManagedObjectContext *)mainContext {
@@ -101,32 +101,51 @@
     return [self sharedInstance].managedObjectModel;
 }
 
-+ (NSError*)saveContextAsyncWithComplete:(SaveResult)complete{
-    return [[self sharedInstance] saveContextAsyncWithComplete:complete];
++ (NSError*)saveContextAsyncWithCompletion:(SaveResult)completion {
+    return [[self sharedInstance] saveContextAsyncWithCompletion:completion];
 }
--(NSError*)saveContextAsyncWithComplete:(SaveResult)complete{
-    NSError *error;
+-(NSError*)saveContextAsyncWithCompletion:(SaveResult)completion {
+    NSError *error = nil;
     if ([_mainContext hasChanges]) {
         [_mainContext save:&error];
-        [_privateContext performBlock:^{
+        [_rootPrivateContext performBlock:^{
             NSError *innerError = nil;
-            [_privateContext save:&innerError];
-            if (complete){
+            [_rootPrivateContext save:&innerError];
+            if (completion){
                 [_mainContext performBlock:^{
-                    complete(innerError);
+                    if (innerError) {
+                        ErrorLog(@"_rootPrivateContext save error : %@", innerError.localizedDescription);
+                    }
+                    completion(innerError);
                 }];
             }
         }];
     }
+    if (error) {
+        ErrorLog(@"_mainContext save error : %@", error.localizedDescription);
+    }
     return error;
 }
 
-+ (void)saveContext:(NSError **)error {
-    [[self sharedInstance] saveContext:error];
++ (void)saveRootPrivateContext:(NSError **)error {
+    [[self sharedInstance] saveRootPrivateContext:error];
 }
-- (void)saveContext:(NSError **)error {
-    if ([[HDCD sharedInstance].privateContext hasChanges]) {
-        [[HDCD sharedInstance].privateContext save:error];
+- (void)saveRootPrivateContext:(NSError **)error {
+    NSManagedObjectContext *ctx = [HDCD rootPrivateContext];
+    if ([ctx hasChanges]) {
+        NSError *cdError = nil;
+        [ctx save: &cdError];
+        if (cdError) {
+            ErrorLog(@"%@", [cdError localizedDescription]);
+            if (*error) {
+                *error = cdError;
+            }
+        }else{
+            StepLog(@"HDCD saveRootPrivateContext success");
+            if (*error) {
+                *error = nil;
+            }
+        }
     }
 }
 

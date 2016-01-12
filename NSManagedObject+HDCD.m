@@ -10,8 +10,8 @@
 
 @implementation NSManagedObject (HDCD)
 
-+ (NSError *)saveAsyncWithComplete:(SaveResult)complete {
-    return [HDCD saveContextAsyncWithComplete:complete];
++ (NSError *)saveAsyncWithCompletion:(SaveResult)completion {
+    return [HDCD saveContextAsyncWithCompletion:completion];
 }
 
 + (__kindof NSManagedObject *)createNew {
@@ -22,13 +22,13 @@
     [[HDCD mainContext] deleteObject:object];
 }
 
-+ (__kindof NSManagedObject *)fetchTheOneWithPredicate:(NSString *)predicate{
++ (__kindof NSManagedObject *)fetchTheOneWithPredicate:(NSPredicate *)predicate{
     NSManagedObjectContext *ctx = [HDCD mainContext];
-    NSFetchRequest *fetchRequest = [self makeFetchRequestWithContext:ctx predicate:predicate orderBy:nil offset:0 limit:0];
+    NSFetchRequest *fetchRequest = [self createFetchRequestWithContext:ctx predicate:predicate orderBy:nil offset:0 limit:0];
     NSError* error = nil;
     NSArray* results = [ctx executeFetchRequest:fetchRequest error:&error];
     if (error) {
-        NSLog(@"fetchTheOneWithPredicate error: %@", error.localizedDescription);
+        ErrorLog(@"fetchTheOneWithPredicate error: %@", error.localizedDescription);
         return nil;
     }
     if (results.count == 0) {
@@ -44,14 +44,14 @@
     return results[0];
 }
 
-+(void)fetchTheOneAsyncWithPredicate:(NSString *)predicate complete:(TheOneResult)complete{
++(void)fetchTheOneAsyncWithPredicate:(NSPredicate *)predicate complete:(TheOneResult)complete{
     NSManagedObjectContext *ctx = [HDCD createTempPrivateContext];
     [ctx performBlock:^{
-        NSFetchRequest *fetchRequest = [self makeFetchRequestWithContext:ctx predicate:predicate orderBy:nil offset:0 limit:0];
+        NSFetchRequest *fetchRequest = [self createFetchRequestWithContext:ctx predicate:predicate orderBy:nil offset:0 limit:0];
         NSError* error = nil;
         NSArray* results = [ctx executeFetchRequest:fetchRequest error:&error];
         if (error) {
-            NSLog(@"fetchTheOneAsyncWithPredicate error: %@", error.localizedDescription);
+            ErrorLog(@"fetchTheOneAsyncWithPredicate error: %@", error.localizedDescription);
             [[HDCD mainContext] performBlock:^{
                 complete(nil, error);
             }];
@@ -80,25 +80,25 @@
     }];
 }
 
-+ (NSArray *)fetchWithPredicate:(NSString *)predicate orderBy:(NSArray *)orders offset:(NSUInteger)offset limit:(NSUInteger)limit {
++ (NSArray *)fetchWithPredicate:(NSPredicate *)predicate orderBy:(NSArray *)orders offset:(NSUInteger)offset limit:(NSUInteger)limit {
     NSManagedObjectContext *ctx = [HDCD mainContext];
-    NSFetchRequest *fetchRequest = [self makeFetchRequestWithContext:ctx predicate:predicate orderBy:orders offset:offset limit:limit];
+    NSFetchRequest *fetchRequest = [self createFetchRequestWithContext:ctx predicate:predicate orderBy:orders offset:offset limit:limit];
     NSError *error = nil;
     NSArray *results = [ctx executeFetchRequest:fetchRequest error:&error];
     if (error) {
-        NSLog(@"fetchWithPredicate error: %@", error.localizedDescription);
+        ErrorLog(@"fetchWithPredicate error: %@", error.localizedDescription);
     }
     return results;
 }
 
-+ (void)fetchAsyncWithPredicate:(NSString *)predicate orderBy:(NSArray *)orders offset:(NSUInteger)offset limit:(NSUInteger)limit complete:(ListResult)complete {
++ (void)fetchAsyncWithPredicate:(NSPredicate *)predicate orderBy:(NSArray *)orders offset:(NSUInteger)offset limit:(NSUInteger)limit complete:(ListResult)complete {
     NSManagedObjectContext *ctx = [HDCD createTempPrivateContext];
     [ctx performBlock:^{
-        NSFetchRequest *fetchRequest = [self makeFetchRequestWithContext:ctx predicate:predicate orderBy:orders offset:offset limit:limit];
+        NSFetchRequest *fetchRequest = [self createFetchRequestWithContext:ctx predicate:predicate orderBy:orders offset:offset limit:limit];
         NSError* error = nil;
         NSArray* results = [ctx executeFetchRequest:fetchRequest error:&error];
         if (error) {
-            NSLog(@"fetchAsyncWithPredicate error: %@", error.localizedDescription);
+            ErrorLog(@"fetchAsyncWithPredicate error: %@", error.localizedDescription);
         }
         NSMutableArray *result_ids = [[NSMutableArray alloc] init];
         for (NSManagedObject *item  in results) {
@@ -138,12 +138,13 @@
     }];
 }
 
-#pragma mark - 查询请求建立的方法
-+ (NSFetchRequest *)makeFetchRequestWithContext:(NSManagedObjectContext *)ctx predicate:(NSString *)predicate orderBy:(NSArray *)orders offset:(NSUInteger)offset limit:(NSUInteger)limit {
+/// MARK: 查询请求的构造，注意：predicate 是字串
++ (NSFetchRequest *)createFetchRequestWithContext:(NSManagedObjectContext *)ctx predicate:(NSPredicate *)predicate orderBy:(NSArray *)orders offset:(NSUInteger)offset limit:(NSUInteger)limit
+{
     NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
     [fetchRequest setEntity:[NSEntityDescription entityForName:NSStringFromClass([self class]) inManagedObjectContext:ctx]];
     if (predicate) {
-        [fetchRequest setPredicate:[NSPredicate predicateWithFormat:predicate]];
+        fetchRequest.predicate = predicate;
     }
     NSMutableArray *orderArray = [[NSMutableArray alloc] init];
     if (orders != nil) {

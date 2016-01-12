@@ -40,7 +40,7 @@ Entity *task = _dataArray[indexPath.row];
 
 ### 5、保存变动
 ```objectivec
-[Entity saveAsyncWithComplete:^(NSError *error) {
+[Entity saveAsyncWithCompletion:^(NSError *error) {
     _txInputBox.text = @"";
     [self fetchEntitys];
 }];
