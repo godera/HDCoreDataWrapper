@@ -19,7 +19,7 @@ HDCoreDataWrapper
 - (void)applicationWillTerminate:(UIApplication *)application
 {
     // Saves changes in the application's managed object context before the application terminates.
-    [HDCD saveContext:nil];
+    [HDCD saveRootPrivateContext:nil];
 }
 ```
 
