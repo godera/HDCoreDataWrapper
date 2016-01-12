@@ -15,15 +15,15 @@
 }
 
 + (__kindof NSManagedObject *)createNew {
-    return [NSEntityDescription insertNewObjectForEntityForName:NSStringFromClass([self class]) inManagedObjectContext:[HDCD sharedInstance].mainContext];
+    return [NSEntityDescription insertNewObjectForEntityForName:NSStringFromClass([self class]) inManagedObjectContext:[HDCD mainContext]];
 }
 
 + (void)deleteObject:(NSManagedObject *)object {
-    [[HDCD sharedInstance].mainContext deleteObject:object];
+    [[HDCD mainContext] deleteObject:object];
 }
 
 + (__kindof NSManagedObject *)fetchTheOneWithPredicate:(NSString *)predicate{
-    NSManagedObjectContext *ctx = [HDCD sharedInstance].mainContext;
+    NSManagedObjectContext *ctx = [HDCD mainContext];
     NSFetchRequest *fetchRequest = [self makeFetchRequestWithContext:ctx predicate:predicate orderBy:nil offset:0 limit:0];
     NSError* error = nil;
     NSArray* results = [ctx executeFetchRequest:fetchRequest error:&error];
@@ -31,8 +31,15 @@
         NSLog(@"fetchTheOneWithPredicate error: %@", error.localizedDescription);
         return nil;
     }
-    if (results.count != 1) {
+    if (results.count == 0) {
         return nil;
+    }
+    if (results.count > 1) {
+        [results enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+            if (idx > 0) {
+                [self deleteObject:obj];
+            }
+        }];
     }
     return results[0];
 }
@@ -45,20 +52,27 @@
         NSArray* results = [ctx executeFetchRequest:fetchRequest error:&error];
         if (error) {
             NSLog(@"fetchTheOneAsyncWithPredicate error: %@", error.localizedDescription);
-            [[HDCD sharedInstance].mainContext performBlock:^{
+            [[HDCD mainContext] performBlock:^{
                 complete(nil, error);
             }];
             return;
         }
-        if (results.count != 1) {
-            [[HDCD sharedInstance].mainContext performBlock:^{
+        if (results.count == 0) {
+            [[HDCD mainContext] performBlock:^{
                 complete(nil, nil);
             }];
             return;
         }
+        if (results.count > 1) {
+            [results enumerateObjectsUsingBlock:^(id  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+                if (idx > 0) {
+                    [self deleteObject:obj];
+                }
+            }];
+        }
         NSManagedObjectID *objId = ((NSManagedObject*)results[0]).objectID;
-        [[HDCD sharedInstance].mainContext performBlock:^{
-            __kindof NSManagedObject *object = [[HDCD sharedInstance].mainContext objectWithID:objId];
+        [[HDCD mainContext] performBlock:^{
+            __kindof NSManagedObject *object = [[HDCD mainContext] objectWithID:objId];
             if (complete) {
                 complete(object, nil);
             }
@@ -67,7 +81,7 @@
 }
 
 + (NSArray *)fetchWithPredicate:(NSString *)predicate orderBy:(NSArray *)orders offset:(NSUInteger)offset limit:(NSUInteger)limit {
-    NSManagedObjectContext *ctx = [HDCD sharedInstance].mainContext;
+    NSManagedObjectContext *ctx = [HDCD mainContext];
     NSFetchRequest *fetchRequest = [self makeFetchRequestWithContext:ctx predicate:predicate orderBy:orders offset:offset limit:limit];
     NSError *error = nil;
     NSArray *results = [ctx executeFetchRequest:fetchRequest error:&error];
@@ -90,10 +104,10 @@
         for (NSManagedObject *item  in results) {
             [result_ids addObject2:item.objectID];
         }
-        [[HDCD sharedInstance].mainContext performBlock:^{
+        [[HDCD mainContext] performBlock:^{
             NSMutableArray *final_results = [[NSMutableArray alloc] init];
             for (NSManagedObjectID *oid in result_ids) {
-                [final_results addObject2:[[HDCD sharedInstance].mainContext objectWithID:oid]];
+                [final_results addObject2:[[HDCD mainContext] objectWithID:oid]];
             }
             if (complete) {
                 complete(final_results, error);
@@ -112,10 +126,10 @@
             [idArray addObject2:obj.objectID];
         }
         NSArray *objectIdArray = [idArray copy];
-        [[HDCD sharedInstance].mainContext performBlock:^{
+        [[HDCD mainContext] performBlock:^{
             NSMutableArray *objArray = [[NSMutableArray alloc] init];
             for (NSManagedObjectID *anObjID in objectIdArray) {
-                [objArray addObject2:[[HDCD sharedInstance].mainContext objectWithID:anObjID]];
+                [objArray addObject2:[[HDCD mainContext] objectWithID:anObjID]];
             }
             if (complete) {
                 complete([objArray copy], nil);

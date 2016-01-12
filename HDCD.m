@@ -9,8 +9,21 @@
 #import "HDCD.h"
 
 @interface HDCD ()
+
 @property (nonatomic, copy) NSString *modelName;
 @property (nonatomic, copy) NSString *sqliteFileName;
+
+@property (strong, nonatomic) NSManagedObjectModel *managedObjectModel;
+
+ // saving context
+@property (strong, nonatomic) NSManagedObjectContext *privateContext;
+
+ // UI context
+@property (strong, nonatomic) NSManagedObjectContext *mainContext;
+
+ // data context
++ (NSManagedObjectContext *)createTempPrivateContext;
+
 @end
 
 
@@ -25,27 +38,58 @@
     return singleInstance;
 }
 
-+ (void)setEnvironmentWithModelName:(NSString *)modelName sqliteFileName:(NSString *)fileName {
-    [[self sharedInstance] setEnvironmentWithModelName:modelName sqliteFileName:fileName];
++ (void)initEnvironmentWithModelName:(NSString *)modelName sqliteFileName:(NSString *)fileName {
+    [[self sharedInstance] initEnvironmentWithModelName:modelName sqliteFileName:fileName];
 }
-- (void)setEnvironmentWithModelName:(NSString *)modelName sqliteFileName:(NSString *)fileName {
+- (void)initEnvironmentWithModelName:(NSString *)modelName sqliteFileName:(NSString *)fileName {
     _modelName = modelName;
     _sqliteFileName = fileName;
     [self initCoreDataStack];
 }
 
-- (void)initCoreDataStack {
-    NSPersistentStoreCoordinator *coordinator = [self persistentStoreCoordinator];
-    if (coordinator != nil) {
-        _privateContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSPrivateQueueConcurrencyType];
-        [_privateContext setPersistentStoreCoordinator:coordinator];
-
-        _mainContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
-        [_mainContext setParentContext:_privateContext];
+- (void)initCoreDataStack
+{
+    // 1、初始化 model
+    NSURL *modelURL = [[NSBundle mainBundle] URLForResource:_modelName withExtension:@"momd"];
+    NSManagedObjectModel *managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
+    self.managedObjectModel = managedObjectModel;
+    
+    // 2、初始化 coordinator
+    // 这里把数据库文件存储在了 Documents 目录，然后做了 iCloud 上传屏蔽
+    NSURL *documentURL = [[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject];
+    NSURL *dbFileURL = [documentURL URLByAppendingPathComponent:_sqliteFileName];
+    NSLog(@"core data db URL = %@", dbFileURL);
+    
+    NSError *error = nil;
+    NSDictionary *options = @{NSMigratePersistentStoresAutomaticallyOption: @YES, NSInferMappingModelAutomaticallyOption: @YES};
+    NSPersistentStoreCoordinator *persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel: managedObjectModel];
+    
+    if (![persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:dbFileURL options:options error:&error]) {
+        NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
+        abort();
+    }
+    [dbFileURL skipICloudBackup];
+    
+    // 3、初始化 子母context
+    if (persistentStoreCoordinator != nil) {
+        NSManagedObjectContext *privateContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSPrivateQueueConcurrencyType];
+        privateContext.persistentStoreCoordinator = persistentStoreCoordinator;
+        self.privateContext = privateContext;
+        
+        NSManagedObjectContext *mainContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
+        mainContext.parentContext = privateContext;
+        self.mainContext = mainContext;
     }
 
 }
 
++ (NSManagedObjectContext *)privateContext {
+    return [self sharedInstance].privateContext;
+}
+
++ (NSManagedObjectContext *)mainContext {
+    return [self sharedInstance].mainContext;
+}
 
 + (NSManagedObjectContext *)createTempPrivateContext {
     NSManagedObjectContext *ctx = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSPrivateQueueConcurrencyType];
@@ -53,36 +97,9 @@
     return ctx;
 }
 
-
-- (NSManagedObjectModel *)managedObjectModel
-{
-    NSManagedObjectModel *managedObjectModel;
-    NSURL *modelURL = [[NSBundle mainBundle] URLForResource:_modelName withExtension:@"momd"];
-    managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
-    return managedObjectModel;
++ (NSManagedObjectModel *)managedObjectModel {
+    return [self sharedInstance].managedObjectModel;
 }
-
-- (NSPersistentStoreCoordinator *)persistentStoreCoordinator
-{
-    NSPersistentStoreCoordinator *persistentStoreCoordinator = nil;
-    NSURL *storeURL = [[self applicationDocumentsDirectory] URLByAppendingPathComponent:_sqliteFileName];
-
-    NSError *error = nil;
-    NSDictionary *options = @{NSMigratePersistentStoresAutomaticallyOption: @YES, NSInferMappingModelAutomaticallyOption: @YES};
-    persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:[self managedObjectModel]];
-    
-    if (![persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:storeURL options:options error:&error]) {
-        NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
-        abort();
-    }
-    return persistentStoreCoordinator;
-}
-
-- (NSURL *)applicationDocumentsDirectory {
-    return [[[NSFileManager defaultManager] URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask] lastObject];
-//    return [[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject];
-}
-
 
 + (NSError*)saveContextAsyncWithComplete:(SaveResult)complete{
     return [[self sharedInstance] saveContextAsyncWithComplete:complete];

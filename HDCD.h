@@ -15,19 +15,22 @@ typedef void (^SaveResult)(NSError *error);
 @interface HDCD : NSObject
 
 @property (readonly, strong, nonatomic) NSOperationQueue *queue; // 没实现
-/// writer
-@property (readonly ,strong, nonatomic) NSManagedObjectContext *privateContext;
-/// excutor
-@property (readonly, strong, nonatomic) NSManagedObjectContext *mainContext;
 
 + (HDCD *)sharedInstance;
 
-// called in -application:didFinishLaunchingWithOptions:
-+ (void)setEnvironmentWithModelName:(NSString *)modelName sqliteFileName:(NSString *)fileName;
-// called in -applicationWillTerminate:
+ // called in -application:didFinishLaunchingWithOptions:
++ (void)initEnvironmentWithModelName:(NSString *)modelName sqliteFileName:(NSString *)fileName;
+ // called in -applicationWillTerminate:
 + (void)saveContext:(NSError **)error;
 
+ /// saving context
++ (NSManagedObjectContext *)privateContext;
+ /// UI context
++ (NSManagedObjectContext *)mainContext;
+ /// data context
 + (NSManagedObjectContext *)createTempPrivateContext;
+
++ (NSManagedObjectModel *)managedObjectModel;
 
 + (NSError *)saveContextAsyncWithComplete:(SaveResult)complete;
 

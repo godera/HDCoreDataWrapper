@@ -12,7 +12,7 @@ HDCoreDataWrapper
 ```objectivec
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
-    [HDCD setEnvironmentWithModelName:@"HDCoreDataWrapper" sqliteFileName:@"HDCoreDataWrapper.sqlite"];
+    [HDCD initEnvironmentWithModelName:@"HDCoreDataWrapper" sqliteFileName:@"HDCoreDataWrapper.sqlite"];
     return YES;
 }
 
