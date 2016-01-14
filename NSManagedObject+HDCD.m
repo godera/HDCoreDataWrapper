@@ -138,7 +138,7 @@
     }];
 }
 
-/// MARK: 查询请求的构造，注意：predicate 是字串
+/// MARK: 查询请求的构造
 + (NSFetchRequest *)createFetchRequestWithContext:(NSManagedObjectContext *)ctx predicate:(NSPredicate *)predicate orderBy:(NSArray *)orders offset:(NSUInteger)offset limit:(NSUInteger)limit
 {
     NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];

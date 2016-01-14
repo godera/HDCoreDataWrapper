@@ -47,7 +47,7 @@ typedef NSArray * (^FetchBlock)(NSManagedObjectContext *ctx, NSString *className
  /// 异步自由查询
 + (void)fetchAsyncWithBlock:(FetchBlock)fetchBlock complete:(ListResult)complete;
 
- /// 查询请求的构造，注意：predicate 是字串
+ /// 查询请求的构造
 + (NSFetchRequest *)createFetchRequestWithContext:(NSManagedObjectContext *)ctx predicate:(NSPredicate *)predicate orderBy:(NSArray *)orders offset:(NSUInteger)offset limit:(NSUInteger)limit;
 
 @end
