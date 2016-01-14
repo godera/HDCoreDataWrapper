@@ -15,7 +15,7 @@
 }
 
 + (__kindof NSManagedObject *)createNew {
-    return [NSEntityDescription insertNewObjectForEntityForName:NSStringFromClass([self class]) inManagedObjectContext:[HDCD mainContext]];
+    return [NSEntityDescription insertNewObjectForEntityForName:NSStringFromClass(self) inManagedObjectContext:[HDCD mainContext]];
 }
 
 + (void)deleteObject:(NSManagedObject *)object {
